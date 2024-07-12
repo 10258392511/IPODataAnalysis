@@ -15,5 +15,6 @@ setup(
         "openpyxl",
         "ipywidgets",
         "tqdm",
+        "pymupdf",
     ]
 )
