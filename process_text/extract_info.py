@@ -36,7 +36,7 @@ def extract_content(doc: fitz.Document):
     for page in content_pages:
         matches = re.findall(content_entry_pattern, page.get_text())
         links = page.get_links()
-        for match, link in zip(matches, links):
+        for match, link in zip(matches, links[1:]):  # The first link is to the content table
             match = re.sub(r"[\n\.]", "", match)
             match = match.strip()
             link_kind = link.get("kind", -1)
@@ -50,14 +50,43 @@ def extract_content(doc: fitz.Document):
                 }
             })
 
+    if len(res) == 0:
+        raise ValueError("Error in processing content table!")
+
     return res
 
 
 def extract_q_and_a(doc: fitz.Document, content_res: list):
     """
     content_res is output of extract_content(.)
+
+    Returns
+    -------
+    [
+        {
+            "question": str (from the content table),
+            "pages": (start_page: int, end_page: int),
+            "question_long": str,
+            "ans_collection": list[dict],
+        }...
+    ]
     """
-    pass
+    res = []
+    for i in range(len(content_res)):
+        q_and_a_res = {}
+        content_entry = content_res[i]
+        q_and_a_res["question"] = content_entry["question"]
+        start_page = content_entry["link"]["page"]
+        if i == len(content_res) - 1:
+            end_page = len(doc)  # Inclusive
+        else:
+            end_page = content_res[i + 1]["link"]["page"]  # Inclusive
+        q_and_a_res["pages"] = (start_page, end_page)
+        q_and_a_processed = process_q_and_a(doc, start_page, end_page)
+        q_and_a_res.update(q_and_a_processed)
+        res.append(q_and_a_res)
+
+    return res
 
 
 def process_ans(doc: fitz.Document, start_page: int, end_page: int, reply_str: str, buffer=100):
@@ -136,37 +165,3 @@ def process_q_and_a(doc: fitz.Document, start_page: int, end_page: int):
     res["ans_collection"] = ans_list
 
     return res
-
-
-# def extract_bold_text_from_pdf(pdf_path):
-#     doc = fitz.open(pdf_path)
-#     bold_text = []
-#
-#     for page_num in range(len(doc)):
-#         page = doc.load_page(page_num)
-#         blocks = page.get_text("dict")["blocks"]
-#
-#         for block in blocks:
-#             if "lines" in block:
-#                 for line in block["lines"]:
-#                     for span in line["spans"]:
-#                         if span["flags"] & 2:  # Check if the text is bold (bold flag is 2)
-#                             bold_text.append(span["text"])
-#
-#     doc.close()
-#     return bold_text
-#
-#
-# def print_bold_text(bold_text):
-#     for text in bold_text:
-#         print(text)
-#
-#
-# # Define the path to your PDF file
-# pdf_path = "path/to/your/pdf/file.pdf"  # Update this path
-#
-# # Extract bold text from the PDF
-# bold_text = extract_bold_text_from_pdf(pdf_path)
-#
-# # Print the extracted bold text
-# print_bold_text(bold_text)
