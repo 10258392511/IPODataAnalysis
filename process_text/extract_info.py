@@ -29,14 +29,17 @@ def extract_content(doc: fitz.Document):
             content_pages.append(page)
             has_found_content = True
 
-
     # print(page_id)
     # print(content_pages)
     res = []
     for page in content_pages:
         matches = re.findall(content_entry_pattern, page.get_text())
         links = page.get_links()
-        for match, link in zip(matches, links[1:]):  # The first link is to the content table
+        first_page = doc.load_page(links[0]["page"])
+        content_matches = re.findall(re.compile(r"\.{3,}"), first_page.get_text())
+        if len(content_matches) > 0:
+            links = links[1:]
+        for match, link in zip(matches, links):  # The first link is to the content table
             match = re.sub(r"[\n\.]", "", match)
             match = match.strip()
             link_kind = link.get("kind", -1)

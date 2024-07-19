@@ -4,6 +4,7 @@ from setuptools import setup, find_packages
 setup(
     name="IPODataAnalysis",
     version="0.1",
+    packages=find_packages(),
     install_requires=[
         "numpy",
         "pandas",
@@ -16,5 +17,6 @@ setup(
         "ipywidgets",
         "tqdm",
         "pymupdf",
+        "selenium",
     ]
 )
