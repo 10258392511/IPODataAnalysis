@@ -17,6 +17,7 @@ setup(
         "ipywidgets",
         "tqdm",
         "pymupdf",
+        "beautifulsoup4",
         "selenium",
     ]
 )

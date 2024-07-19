@@ -19,6 +19,7 @@ def extract_content(doc: fitz.Document):
     """
     content_entry_pattern = re.compile(PATTERNS["content_entry"])
     content_pages = []
+    content_page_ids = []
     has_found_content = False
     for page_id in range(len(doc)):
         page = doc.load_page(page_id)
@@ -27,18 +28,21 @@ def extract_content(doc: fitz.Document):
             break
         if len(matches) > 0:
             content_pages.append(page)
+            content_page_ids.append(page_id)
             has_found_content = True
 
     # print(page_id)
     # print(content_pages)
+    content_page_end_id = content_page_ids[-1]
     res = []
     for page in content_pages:
         matches = re.findall(content_entry_pattern, page.get_text())
         links = page.get_links()
-        first_page = doc.load_page(links[0]["page"])
-        content_matches = re.findall(re.compile(r"\.{3,}"), first_page.get_text())
-        if len(content_matches) > 0:
-            links = links[1:]
+        links = list(filter(lambda link: link["page"] > content_page_end_id, links))
+        # first_page = doc.load_page(links[0]["page"])
+        # content_matches = re.findall(re.compile(r"\.{3,}"), first_page.get_text())
+        # if len(content_matches) > 0:
+        #     links = links[1:]
         for match, link in zip(matches, links):  # The first link is to the content table
             match = re.sub(r"[\n\.]", "", match)
             match = match.strip()

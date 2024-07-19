@@ -21,7 +21,7 @@ def retrieve_element(url: str, css_selector: str):
 
     return ele
 
-
+##### Index Page (e.g. IPO) #####
 def is_table_ready(driver):
     div_total_pages = driver.find_element(By.CSS_SELECTOR, "div.current-page")
 
@@ -78,3 +78,8 @@ def retrieve_index_table(index_begin_url: str, wait_ready=30, save_dir=None):
         table_df_out.to_csv(os.path.join(save_dir, "index_page.csv"), index=False, encoding="utf_8_sig")
 
     return table_df_out
+
+#################################
+
+##### Detail Page #####
+
