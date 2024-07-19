@@ -30,6 +30,7 @@ def is_table_ready(driver):
 
 def retrieve_table(html_ele: WebElement, if_retrieve_link=True):
     table_ele = html_ele.find_element(By.CSS_SELECTOR, "table.reg-table")
+    time.sleep(0.5)  # Prevent Stale Element Reference Exception
     table_html = table_ele.get_attribute("outerHTML")
     table_df = pd.read_html(table_html)[0]
 
@@ -66,7 +67,7 @@ def retrieve_index_table(index_begin_url: str, wait_ready=30, save_dir=None):
         last_table_df = table_dfs[-1]
         while table_df.iloc[0, 0] == last_table_df.iloc[0, 0]:
             table_df = retrieve_table(driver, if_retrieve_link=False)
-            time.sleep(0.1)
+            # time.sleep(0.1)
         table_df = retrieve_table(driver)
         table_dfs.append(table_df)
 
