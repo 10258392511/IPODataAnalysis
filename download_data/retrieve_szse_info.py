@@ -3,36 +3,23 @@ import pandas as pd
 import requests
 import re
 import datetime as dt
+import logging
 import time
 import os
 
+from multiprocessing import Pool, Manager
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import NoSuchElementException
 from collections import defaultdict
 
 from ..global_configs import ROOT_DIR
 from IPODataAnalysis.configs import CHROME_EXECUTABLE_PATH
-
-
-def retrieve_element(url: str, css_selector: str):
-    driver = webdriver.Chrome(service=ChromeService(executable_path=CHROME_EXECUTABLE_PATH))
-    driver.get(url)
-    ele = driver.find_element(By.CSS_SELECTOR, css_selector)
-
-    return ele
-
-
-def retrieve_page(url: str) -> BeautifulSoup:
-    resp = requests.get(url)
-    if resp.status_code == 200:
-        soup = BeautifulSoup(resp.content, "html.parser")
-        return soup
-    else:
-        raise requests.HTTPError
+from .utils import download_and_save_file
 
 
 ##### Index Page (e.g. IPO) #####
@@ -97,6 +84,16 @@ def retrieve_index_table(index_begin_url: str, wait_ready=30, save_dir=None):
 #################################
 
 ##### Detail Page #####
+def is_page_ready(driver):
+    try:
+        div_title: WebElement = driver.find_element(By.CSS_SELECTOR, "div.project-title")
+        if len(div_title.text) > 0:
+            return True
+        return False
+    except NoSuchElementException:
+        return False
+
+
 def extract_timeline(driver):
     data_dict = defaultdict(list)
     ul_ele: WebElement = driver.find_element(By.CSS_SELECTOR, "ul.project-dy-flow-con")
@@ -128,14 +125,22 @@ def extract_project_info(driver):
 
 def extract_inquiries_and_replies(driver):
     """
-    TODO: Handle:
-    - No table
-    - No link in the row
+    Handles:
+    - No table (Done)
+    - No link in the row, i.e a <span> instead of an <a>
     - Can't find first and / or second round inquiry letter
+
+    Returns
+    -------
+    dict:
+        filename: url
     """
     div_ele = driver.find_element(By.XPATH, "//div[contains(text(), '问询与回复')]/following-sibling::div[1]")
     table_ele: WebElement = div_ele.find_element(By.CSS_SELECTOR, "table.info-disc-table")
-    data_df = pd.read_html(table_ele.get_attribute("outerHTML"))[0]
+    data_df_all = pd.read_html(table_ele.get_attribute("outerHTML"))
+    if len(data_df_all) == 0:
+        return {}
+    data_df = data_df_all[0]
 
     def find_broker_rows(title: str, key_word: str = None):
         """
@@ -159,4 +164,81 @@ def extract_inquiries_and_replies(driver):
     second_round_df = broker_df[second_round_mask].sort_values("更新日期", ascending=False)
     first_round_df = broker_df[~second_round_mask].sort_values("更新日期", ascending=False)
 
-    return first_round_df, second_round_df
+    out_dict = {}
+    for df_iter in [first_round_df, second_round_df]:
+        if len(df_iter) == 0:
+            continue
+        title_iter = df_iter["内容"].iloc[0]
+        try:
+            anchor_ele: WebElement = driver.find_element(By.XPATH, f"//a[contains(text(), '{title_iter}')]")
+            out_dict[title_iter] = anchor_ele.get_attribute("href")
+        except NoSuchElementException:
+            out_dict[title_iter] = None
+
+    return out_dict
+
+
+def retrieve_detail_page(page_url: str, save_dir: str, wait_ready=30):
+    """
+    - extract_timeline(.)
+    - extract_project_info(.)
+    - extract_inquieies_and_replies(.): Download the pdfs
+
+    Returns
+    -------
+    DataFrame: one row containing timeline and project info
+    """
+    driver = webdriver.Chrome(service=ChromeService(executable_path=CHROME_EXECUTABLE_PATH))
+    driver.get(page_url)
+    WebDriverWait(driver, wait_ready).until(is_page_ready)
+    timeline_df = extract_timeline(driver)
+    project_info_df = extract_project_info(driver)
+    df_all = pd.concat([timeline_df, project_info_df], axis=1)
+    url_dict = extract_inquiries_and_replies(driver)
+    comp_name = df_all["公司简称"].iloc[0]
+    save_dir_company = os.path.join(save_dir, comp_name)
+    for filename, url in url_dict.items():
+        filename_save = os.path.join(save_dir_company, filename)
+        download_and_save_file(url, filename_save)
+
+    return df_all
+
+
+def __wrapper_retrieve_detail_page(page_url: str, save_dir: str, wait_ready: int, print_interval: int,
+                                   total_num_urls: int, shared_list: list, logger: logging.Logger):
+    try:
+        df_all = retrieve_detail_page(page_url, save_dir, wait_ready)
+        shared_list.append(df_all)
+        if len(shared_list) % print_interval == 1:
+            logger.debug(f"Current: {len(shared_list)}/{total_num_urls}")
+    except Exception as e:
+        logger.debug(e)
+
+
+def retrieve_all_detail_pages(index_page_filename: str, save_dir: str, logger: logging.Logger, output_dir: str = None,
+                              num_processes=8, **kwargs):
+    """
+    save_dir: Root directory for saving pdfs
+    output_dir: Directory for saving the combined DF
+    """
+    wait_ready = kwargs.get("wait_ready", 30)
+    print_interval = kwargs.get("print_interval", 50)
+
+    index_page_df: pd.DataFrame = pd.read_csv(index_page_filename, header=[0])
+    # index_page_df = index_page_df.loc[:10, :]  # TODO: Comment out
+    detail_page_urls = list(index_page_df["detail_page"])
+
+    with Manager() as manager:
+        shared_list = manager.list()
+        args_all = [(url_iter, save_dir, wait_ready, print_interval, len(detail_page_urls), shared_list, logger)
+                    for url_iter in detail_page_urls]
+        with Pool(processes=num_processes) as pool:
+            pool.starmap(__wrapper_retrieve_detail_page, args_all)
+        detail_all_df = pd.concat(shared_list, axis=0)
+
+    combined_df = index_page_df.merge(detail_all_df, how="inner", left_on="发行人全称", right_on="公司全称")
+
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+    combined_df.to_csv(os.path.join(output_dir, "detailed_info.csv"), index=False, encoding="utf_8_sig")
+    logger.debug("Finished!")
