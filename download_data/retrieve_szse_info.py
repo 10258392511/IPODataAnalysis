@@ -18,8 +18,9 @@ from selenium.common.exceptions import NoSuchElementException
 from collections import defaultdict
 
 from ..global_configs import ROOT_DIR
+from ..utils import make_directories
 from IPODataAnalysis.configs import CHROME_EXECUTABLE_PATH
-from .utils import download_and_save_file
+from .utils import download_and_save_file, init_driver
 
 
 ##### Index Page (e.g. IPO) #####
@@ -225,7 +226,7 @@ def retrieve_all_detail_pages(index_page_filename: str, save_dir: str, logger: l
     print_interval = kwargs.get("print_interval", 50)
 
     index_page_df: pd.DataFrame = pd.read_csv(index_page_filename, header=[0])
-    # index_page_df = index_page_df.loc[:10, :]  # TODO: Comment out
+    # index_page_df = index_page_df.loc[:10, :]
     detail_page_urls = list(index_page_df["detail_page"])
 
     with Manager() as manager:
@@ -242,3 +243,35 @@ def retrieve_all_detail_pages(index_page_filename: str, save_dir: str, logger: l
         os.makedirs(output_dir)
     combined_df.to_csv(os.path.join(output_dir, "detailed_info.csv"), index=False, encoding="utf_8_sig")
     logger.debug("Finished!")
+
+
+def retrieve_latest_prospectus(driver: webdriver.Chrome, company_dir: str):
+    div_ele = driver.find_element(By.XPATH, "//div[contains(text(), '信息披露')]/following-sibling::div[1]")
+    tgt_td = div_ele.find_element(By.XPATH, "//td[contains(text(), '招股说明书')]/following-sibling::td[1]")
+    all_anchors = tgt_td.find_elements(By.CSS_SELECTOR, "a")
+    all_anchors = [anchor for anchor in all_anchors if anchor.get_attribute("href") is not None]
+    all_anchors.sort(key=lambda anchor: pd.to_datetime(anchor.text), reverse=True)
+    tgt_anchor = all_anchors[0]
+    file_url = tgt_anchor.get_attribute("href")
+    download_and_save_file(file_url, os.path.join(company_dir, f"招股说明书_{tgt_anchor.text}.pdf"))
+
+
+def __wrap_retrieve_latest_prospectus(url: str, company_dir: str, wait_ready=30):
+    try:
+        driver = init_driver(url)
+        WebDriverWait(driver, wait_ready).until(is_page_ready)
+        retrieve_latest_prospectus(driver, company_dir)
+    except Exception as e:
+        pass
+
+
+def retrieve_all_prospectuses(detail_info_filename: str, save_dir: str, num_processes=8, **kwargs):
+    wait_ready = kwargs.get("wait_ready", 30)
+    detail_info_df: pd.DataFrame = pd.read_csv(detail_info_filename, header=[0])
+    comp_names = detail_info_df["公司简称"].tolist()
+    detail_urls = detail_info_df["detail_page"].tolist()
+
+    with Pool(processes=num_processes) as pool:
+        args_all = [(url_iter, os.path.join(save_dir, comp_name_iter), wait_ready) for url_iter, comp_name_iter in
+                    zip(detail_urls, comp_names)]
+        pool.starmap(__wrap_retrieve_latest_prospectus, args_all)

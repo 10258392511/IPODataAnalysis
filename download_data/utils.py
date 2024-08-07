@@ -10,6 +10,13 @@ from ..global_configs import ROOT_DIR
 from IPODataAnalysis.configs import CHROME_EXECUTABLE_PATH
 
 
+def init_driver(url: str):
+    driver = webdriver.Chrome(service=ChromeService(executable_path=CHROME_EXECUTABLE_PATH))
+    driver.get(url)
+
+    return driver
+
+
 def retrieve_element(url: str, css_selector: str):
     driver = webdriver.Chrome(service=ChromeService(executable_path=CHROME_EXECUTABLE_PATH))
     driver.get(url)
@@ -28,6 +35,8 @@ def retrieve_page(url: str) -> BeautifulSoup:
 
 
 def download_and_save_file(url, save_filename: str = None):
+    if os.path.isfile(save_filename):
+       return
     resp = requests.get(url)
     if resp.status_code != 200:
         raise requests.HTTPError

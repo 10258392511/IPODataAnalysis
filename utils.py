@@ -1,3 +1,4 @@
+import fitz
 import logging
 import datetime as dt
 import os
@@ -21,3 +22,18 @@ def create_logger(logger_name: str, log_filename: str):
     logger.addHandler(handler)
 
     return logger
+
+
+def make_directories(filename: str):
+    dir_name = os.path.dirname(filename)
+    if not os.path.isdir(dir_name):
+        os.makedirs(dir_name)
+
+
+def combine_pdfs(out_filename: str, *filenames):
+    doc_out = fitz.open()
+    for filename in filenames:
+        doc_iter = fitz.open(filename)
+        doc_out.insert_pdf(doc_iter, 0, doc_iter.page_count)
+        doc_iter.close()
+    doc_out.save(out_filename)
