@@ -61,7 +61,7 @@ def combine_pdf_from_comp_names(comp_names: list, prospectus_dir: str, inquery_d
                                 out_filename: str = "combined", max_file_size: float = 576.,
                                 max_file_size_unit: str = "MB"):
     """
-    temp_dir: for temporarily saving file to compute file size
+    Combine pdfs to consolidated pdfs with limited file size.
     """
     max_file_size_bytes = max_file_size * TO_BYTE_FACTORS[max_file_size_unit]
 
