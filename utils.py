@@ -4,6 +4,18 @@ import datetime as dt
 import os
 
 
+TO_BYTE_FACTORS = {
+    "B": 1,
+    "KB": 1024,
+    "MB": 1024 ** 2,
+    "GB": 1024 ** 3,
+    "TB": 1024 ** 4,
+}
+
+
+ZH2NUM = {zh_char: num for zh_char, num in zip(list("一二三四五六七八九十"), range(1, 11))}
+
+
 def create_logger(logger_name: str, log_filename: str):
     """
     log_filename: no suffix

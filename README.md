@@ -1,10 +1,16 @@
 # IPO Data Analysis Project
-This project aims to scale up industry and company analysis procedure of 
-an investment bank. We include the following functionalities:
-- Web scraper to collect the latest data on IPO status, prospectus and inquery letters of companies to be listed 
-  from official public website like [Shenzhen Stock Exchange](https://listing.szse.cn/projectdynamic/ipo/index.html)
-- PDF analyzer to parse question and answer outline from inquery letters
-- A custom GPT designed to extract information from the above documents
-- Prompt templates for the custom GPT to generate structured industry and company analysis report including but 
-  not limited to PESTLE analysis, Porter's Five Forces, SWOT analysis, BCG Matrix and Industry Value Chain analysis 
+
+This project aims to enhance the industry and company analysis procedures for an investment bank. The functionalities included are:
+
+- **Web Scraper**: Collects the latest data on IPO statuses, prospectuses, and inquiry letters from official public websites like the [Shenzhen Stock Exchange](https://listing.szse.cn/projectdynamic/ipo/index.html).
   
+- **PDF Analyzer**: Parses questions and answer outlines from inquiry letters to extract relevant information.
+  
+- **Custom GPT Model**: Designed to extract and analyze information from collected documents to support comprehensive industry and company analysis.
+  
+- **Prompt Templates**: Templates for the custom GPT model to generate structured analysis reports, including but not limited to:
+  - PESTLE Analysis
+  - Porter's Five Forces Analysis
+  - SWOT Analysis
+  - BCG Matrix
+  - Industry Value Chain Analysis
